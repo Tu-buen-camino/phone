@@ -1,6 +1,6 @@
 {
   "name": "@tbisoftware/phone",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "A reusable SIP phone component for React applications",
   "author": "TBI",
