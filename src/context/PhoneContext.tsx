@@ -43,6 +43,7 @@ export function PhoneProvider({
     const currentSessionRef = useRef<any>(null);
     const callStartedTSRef = useRef<number | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const isCleaningUpRef = useRef(false);
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -51,57 +52,89 @@ export function PhoneProvider({
 
     // Initialize JsSIP UA
     useEffect(() => {
+        // Reset cleanup flag
+        isCleaningUpRef.current = false;
+        
         // Cleanup previous UA if exists
         if (uaRef.current) {
-            uaRef.current.stop();
+            try {
+                uaRef.current.stop();
+            } catch (e) {
+                console.warn('Error stopping previous UA:', e);
+            }
             uaRef.current = null;
         }
 
         setConnectionStatus('connecting');
         
-        const socket = new JsSIP.WebSocketInterface(config.websocketUrl);
-        const uaConfig = {
-            sockets: [socket],
-            uri: config.sipUri,
-            password: config.password,
-            registrar_server: config.registrarServer,
-            display_name: config.displayName,
-            authorization_user: config.authorizationUser,
-        };
+        let socket: JsSIP.WebSocketInterface;
+        let ua: JsSIP.UA;
+        
+        try {
+            socket = new JsSIP.WebSocketInterface(config.websocketUrl);
+            const uaConfig = {
+                sockets: [socket],
+                uri: config.sipUri,
+                password: config.password,
+                registrar_server: config.registrarServer,
+                display_name: config.displayName,
+                authorization_user: config.authorizationUser,
+                connection_recovery_min_interval: 2,
+                connection_recovery_max_interval: 30,
+            };
 
-        const ua = new JsSIP.UA(uaConfig);
-        uaRef.current = ua;
+            ua = new JsSIP.UA(uaConfig);
+            uaRef.current = ua;
+        } catch (error) {
+            console.error('Failed to create JsSIP UA:', error);
+            setConnectionStatus('failed');
+            return;
+        }
 
         ua.on('connecting', () => {
-            setConnectionStatus('connecting');
+            if (!isCleaningUpRef.current) {
+                setConnectionStatus('connecting');
+            }
         });
 
         ua.on('connected', () => {
-            setConnectionStatus('connected');
+            if (!isCleaningUpRef.current) {
+                setConnectionStatus('connected');
+            }
         });
 
         ua.on('disconnected', () => {
-            setConnectionStatus('disconnected');
-            setIsReady(false);
+            if (!isCleaningUpRef.current) {
+                setConnectionStatus('disconnected');
+                setIsReady(false);
+            }
         });
 
         ua.on('registered', () => {
-            setIsReady(true);
-            setConnectionStatus('connected');
+            if (!isCleaningUpRef.current) {
+                setIsReady(true);
+                setConnectionStatus('connected');
+            }
         });
 
         ua.on('unregistered', () => {
-            setIsReady(false);
+            if (!isCleaningUpRef.current) {
+                setIsReady(false);
+            }
         });
 
         ua.on('registrationFailed', (e: any) => {
-            console.error('Registration failed:', e?.cause);
-            setIsReady(false);
-            setConnectionStatus('failed');
+            if (!isCleaningUpRef.current) {
+                console.error('Registration failed:', e?.cause);
+                setIsReady(false);
+                setConnectionStatus('failed');
+            }
         });
 
         // Handle incoming/outgoing sessions - set up once here
         ua.on('newRTCSession', (data: any) => {
+            if (isCleaningUpRef.current) return;
+            
             const session = data.session;
             
             // Only handle outgoing calls
@@ -126,12 +159,21 @@ export function PhoneProvider({
         ua.start();
 
         return () => {
+            isCleaningUpRef.current = true;
+            
             if (audioRef.current) {
                 audioRef.current.srcObject = null;
                 audioRef.current = null;
             }
-            ua.stop();
-            uaRef.current = null;
+            
+            if (uaRef.current) {
+                try {
+                    uaRef.current.stop();
+                } catch (e) {
+                    // Ignore errors during cleanup
+                }
+                uaRef.current = null;
+            }
         };
     }, [config.websocketUrl, config.sipUri, config.password, config.registrarServer, config.displayName, config.authorizationUser]);
 
