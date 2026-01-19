@@ -8,6 +8,8 @@ export interface CallHistoryEntry {
 
 export type PhoneStatus = 'disconnected' | 'progress' | 'confirmed' | 'failed' | 'ended';
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed';
+
 export interface PhoneConfig {
     /** WebSocket URL for the SIP connection */
     websocketUrl: string;

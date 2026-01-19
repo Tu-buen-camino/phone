@@ -11,6 +11,7 @@ interface PhoneContextValue {
     startCall: (number: string) => void;
     endCall: () => void;
     isReady: boolean;
+    connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'failed';
 }
 
 const PhoneContext = createContext<PhoneContextValue | null>(null);
@@ -36,12 +37,28 @@ export function PhoneProvider({
     const [currentCallDuration, setCurrentCallDuration] = useState(0);
     const [callHistory, setCallHistory] = useState<CallHistoryEntry[]>([]);
     const [isReady, setIsReady] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('disconnected');
     
     const uaRef = useRef<JsSIP.UA | null>(null);
     const currentSessionRef = useRef<any>(null);
+    const callStartedTSRef = useRef<number | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        callStartedTSRef.current = callStartedTS;
+    }, [callStartedTS]);
 
     // Initialize JsSIP UA
     useEffect(() => {
+        // Cleanup previous UA if exists
+        if (uaRef.current) {
+            uaRef.current.stop();
+            uaRef.current = null;
+        }
+
+        setConnectionStatus('connecting');
+        
         const socket = new JsSIP.WebSocketInterface(config.websocketUrl);
         const uaConfig = {
             sockets: [socket],
@@ -55,16 +72,68 @@ export function PhoneProvider({
         const ua = new JsSIP.UA(uaConfig);
         uaRef.current = ua;
 
-        ua.on('registered', () => setIsReady(true));
-        ua.on('unregistered', () => setIsReady(false));
-        ua.on('registrationFailed', () => setIsReady(false));
+        ua.on('connecting', () => {
+            setConnectionStatus('connecting');
+        });
+
+        ua.on('connected', () => {
+            setConnectionStatus('connected');
+        });
+
+        ua.on('disconnected', () => {
+            setConnectionStatus('disconnected');
+            setIsReady(false);
+        });
+
+        ua.on('registered', () => {
+            setIsReady(true);
+            setConnectionStatus('connected');
+        });
+
+        ua.on('unregistered', () => {
+            setIsReady(false);
+        });
+
+        ua.on('registrationFailed', (e: any) => {
+            console.error('Registration failed:', e?.cause);
+            setIsReady(false);
+            setConnectionStatus('failed');
+        });
+
+        // Handle incoming/outgoing sessions - set up once here
+        ua.on('newRTCSession', (data: any) => {
+            const session = data.session;
+            
+            // Only handle outgoing calls
+            if (session.direction !== 'outgoing') return;
+            
+            currentSessionRef.current = session;
+
+            session.on('peerconnection', () => {
+                session.connection.addEventListener('track', (e: RTCTrackEvent) => {
+                    if (e.streams && e.streams[0]) {
+                        if (!audioRef.current) {
+                            audioRef.current = document.createElement('audio');
+                            audioRef.current.autoplay = true;
+                        }
+                        audioRef.current.srcObject = e.streams[0];
+                        audioRef.current.play().catch(console.error);
+                    }
+                });
+            });
+        });
 
         ua.start();
 
         return () => {
+            if (audioRef.current) {
+                audioRef.current.srcObject = null;
+                audioRef.current = null;
+            }
             ua.stop();
+            uaRef.current = null;
         };
-    }, [config]);
+    }, [config.websocketUrl, config.sipUri, config.password, config.registrarServer, config.displayName, config.authorizationUser]);
 
     // Notify status changes
     useEffect(() => {
@@ -137,6 +206,12 @@ export function PhoneProvider({
     const startCall = useCallback((number: string) => {
         if (!number.trim() || !uaRef.current) return;
 
+        // Check if UA is ready (registered)
+        if (!isReady) {
+            console.warn('Phone is not ready yet. Please wait for registration.');
+            return;
+        }
+
         setCallNumber(number);
         onCallStart?.(number);
 
@@ -144,19 +219,22 @@ export function PhoneProvider({
             progress: () => {
                 setStatus('progress');
             },
-            failed: () => {
+            failed: (e: any) => {
+                console.error('Call failed:', e?.cause);
                 setStatus('failed');
                 addToHistory(number, 0, 'failed');
                 onCallEnd?.(number, 0, 'failed');
-                endCall();
+                currentSessionRef.current = null;
                 setTimeout(() => setStatus('disconnected'), 3000);
             },
             ended: () => {
                 setStatus('ended');
-                const duration = callStartedTS ? Math.floor((Date.now() - callStartedTS) / 1000) : 0;
+                // Use ref to get current timestamp value
+                const startTS = callStartedTSRef.current;
+                const duration = startTS ? Math.floor((Date.now() - startTS) / 1000) : 0;
                 addToHistory(number, duration, 'completed');
                 onCallEnd?.(number, duration, 'completed');
-                endCall();
+                currentSessionRef.current = null;
                 setTimeout(() => {
                     setStatus('disconnected');
                     setCallStartedTS(null);
@@ -173,30 +251,18 @@ export function PhoneProvider({
             mediaConstraints: { audio: true, video: false },
         };
 
-        uaRef.current.on('newRTCSession', (data: any) => {
-            const dataSession = data.session;
-            currentSessionRef.current = dataSession;
-
-            if (dataSession.connection) {
-                dataSession.connection.addEventListener('addstream', (e: any) => {
-                    if (!e.streams?.length) return;
-                    const audio = document.createElement('audio');
-                    audio.srcObject = e.streams[0];
-                    audio.play();
-                });
-
-                dataSession.connection.addEventListener('track', (e: any) => {
-                    const audio = document.createElement('audio');
-                    audio.srcObject = e.streams[0];
-                    audio.play();
-                });
-            }
-        });
-
         setStatus('progress');
-        const session = uaRef.current.call(number, options);
-        currentSessionRef.current = session;
-    }, [addToHistory, endCall, onCallStart, onCallEnd, callStartedTS]);
+        
+        try {
+            const session = uaRef.current.call(number, options);
+            currentSessionRef.current = session;
+        } catch (error) {
+            console.error('Failed to start call:', error);
+            setStatus('failed');
+            addToHistory(number, 0, 'failed');
+            setTimeout(() => setStatus('disconnected'), 3000);
+        }
+    }, [addToHistory, onCallStart, onCallEnd, isReady]);
 
     const value: PhoneContextValue = {
         status,
@@ -207,6 +273,7 @@ export function PhoneProvider({
         startCall,
         endCall,
         isReady,
+        connectionStatus,
     };
 
     return (

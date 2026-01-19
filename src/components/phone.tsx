@@ -72,6 +72,8 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
         currentCallDuration,
         startCall,
         endCall,
+        isReady,
+        connectionStatus,
     } = usePhone();
 
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -128,11 +130,16 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
                     {/* Call Button */}
                     <button
                         onClick={() => startCall(callNumber)}
-                        disabled={callNumber.length < 9}
+                        disabled={callNumber.length < 9 || !isReady}
                         className="h-8 w-8 flex items-center justify-center rounded-xl bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white transition-colors"
                         type="button"
+                        title={!isReady ? 'Connecting...' : 'Call'}
                     >
-                        <PhoneIcon className="w-4 h-4" />
+                        {connectionStatus === 'connecting' ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <PhoneIcon className="w-4 h-4" />
+                        )}
                     </button>
                 </div>
             )}
