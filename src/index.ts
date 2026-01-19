@@ -1,5 +1,7 @@
+import Phone from './components/phone';
+
 // Main exports
-export { default as Phone } from './components/phone';
+export { Phone };
 export { PhoneProvider, usePhone } from './context/PhoneContext';
 
 // Hooks for custom implementations
