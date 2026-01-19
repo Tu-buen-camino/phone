@@ -2,6 +2,151 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import JsSIP from 'jssip';
 import type { PhoneConfig, PhoneStatus, CallHistoryEntry } from '../types';
 
+// ============================================
+// UA Manager
+// ============================================
+
+interface UAInstance {
+    ua: JsSIP.UA;
+    audio: HTMLAudioElement;
+    isStarted: boolean;
+    listeners: Set<UAEventListener>;
+}
+
+interface UAEventListener {
+    onConnecting?: () => void;
+    onConnected?: () => void;
+    onDisconnected?: () => void;
+    onRegistered?: () => void;
+    onUnregistered?: () => void;
+    onRegistrationFailed?: (cause?: string) => void;
+    onNewSession?: (session: any) => void;
+}
+
+// Single global UA instance
+let globalUA: UAInstance | null = null;
+let currentConfigKey: string | null = null;
+
+function getConfigKey(config: PhoneConfig): string {
+    return `${config.websocketUrl}|${config.sipUri}|${config.authorizationUser}`;
+}
+
+function initializeUA(config: PhoneConfig): UAInstance {
+    const configKey = getConfigKey(config);
+    
+    // If already initialized with same config, return existing
+    if (globalUA && currentConfigKey === configKey) {
+        return globalUA;
+    }
+    
+    // If different config, stop existing UA
+    if (globalUA && currentConfigKey !== configKey) {
+        try {
+            globalUA.ua.stop();
+        } catch (e) {
+            // Ignore
+        }
+        globalUA = null;
+    }
+    
+    currentConfigKey = configKey;
+    
+    const socket = new JsSIP.WebSocketInterface(config.websocketUrl);
+    const uaConfig = {
+        sockets: [socket],
+        uri: config.sipUri,
+        password: config.password,
+        registrar_server: config.registrarServer,
+        display_name: config.displayName,
+        authorization_user: config.authorizationUser,
+        connection_recovery_min_interval: 2,
+        connection_recovery_max_interval: 30,
+    };
+
+    const ua = new JsSIP.UA(uaConfig);
+    const audio = document.createElement('audio');
+    audio.autoplay = true;
+    
+    const instance: UAInstance = {
+        ua,
+        audio,
+        isStarted: false,
+        listeners: new Set(),
+    };
+    
+    // Set up UA event handlers that notify all listeners
+    ua.on('connecting', () => {
+        instance.listeners.forEach(l => l.onConnecting?.());
+    });
+
+    ua.on('connected', () => {
+        instance.listeners.forEach(l => l.onConnected?.());
+    });
+
+    ua.on('disconnected', () => {
+        instance.listeners.forEach(l => l.onDisconnected?.());
+    });
+
+    ua.on('registered', () => {
+        instance.listeners.forEach(l => l.onRegistered?.());
+    });
+
+    ua.on('unregistered', () => {
+        instance.listeners.forEach(l => l.onUnregistered?.());
+    });
+
+    ua.on('registrationFailed', (e: any) => {
+        instance.listeners.forEach(l => l.onRegistrationFailed?.(e?.cause));
+    });
+
+    ua.on('newRTCSession', (data: any) => {
+        const session = data.session;
+        
+        if (session.direction !== 'outgoing') return;
+        
+        instance.listeners.forEach(l => l.onNewSession?.(session));
+
+        session.on('peerconnection', () => {
+            session.connection.addEventListener('track', (e: RTCTrackEvent) => {
+                if (e.streams && e.streams[0]) {
+                    instance.audio.srcObject = e.streams[0];
+                    instance.audio.play().catch(console.error);
+                }
+            });
+        });
+    });
+
+    globalUA = instance;
+    
+    return instance;
+}
+
+function startUA(instance: UAInstance): void {
+    if (!instance.isStarted) {
+        instance.ua.start();
+        instance.isStarted = true;
+    }
+}
+
+function addListener(instance: UAInstance, listener: UAEventListener): void {
+    instance.listeners.add(listener);
+}
+
+function removeListener(instance: UAInstance, listener: UAEventListener): void {
+    instance.listeners.delete(listener);
+}
+
+function getUAState(instance: UAInstance): { isReady: boolean; isConnected: boolean } {
+    return {
+        isReady: instance.ua.isRegistered(),
+        isConnected: instance.ua.isConnected(),
+    };
+}
+
+// ============================================
+// React Context and Provider
+// ============================================
+
 interface PhoneContextValue {
     status: PhoneStatus;
     callNumber: string;
@@ -24,17 +169,6 @@ interface PhoneProviderProps {
     onStatusChange?: (status: PhoneStatus) => void;
 }
 
-// Singleton map to store UA instances by config key
-const uaInstances = new Map<string, {
-    ua: JsSIP.UA;
-    refCount: number;
-    audio: HTMLAudioElement | null;
-}>();
-
-function getConfigKey(config: PhoneConfig): string {
-    return `${config.websocketUrl}|${config.sipUri}|${config.authorizationUser}`;
-}
-
 export function PhoneProvider({
     config,
     children,
@@ -48,141 +182,61 @@ export function PhoneProvider({
     const [currentCallDuration, setCurrentCallDuration] = useState(0);
     const [callHistory, setCallHistory] = useState<CallHistoryEntry[]>([]);
     const [isReady, setIsReady] = useState(false);
-    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('disconnected');
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('connecting');
 
-    const uaRef = useRef<JsSIP.UA | null>(null);
     const currentSessionRef = useRef<any>(null);
     const callStartedTSRef = useRef<number | null>(null);
-    const configKeyRef = useRef<string>('');
+    const uaInstanceRef = useRef<UAInstance | null>(null);
 
     // Keep ref in sync with state
     useEffect(() => {
         callStartedTSRef.current = callStartedTS;
     }, [callStartedTS]);
 
-    // Initialize JsSIP UA with singleton pattern
+    // Initialize UA (outside of React lifecycle)
     useEffect(() => {
-        const configKey = getConfigKey(config);
-        configKeyRef.current = configKey;
-
-        let instance = uaInstances.get(configKey);
-
-        if (instance) {
-            // Reuse existing instance
-            instance.refCount++;
-            uaRef.current = instance.ua;
-
-            // Check current state
-            if (instance.ua.isRegistered()) {
+        // Initialize or get existing UA
+        const instance = initializeUA(config);
+        uaInstanceRef.current = instance;
+        
+        // Check current state
+        const state = getUAState(instance);
+        if (state.isReady) {
+            setIsReady(true);
+            setConnectionStatus('connected');
+        } else if (state.isConnected) {
+            setConnectionStatus('connected');
+        }
+        
+        // Create listener for this component instance
+        const listener: UAEventListener = {
+            onConnecting: () => setConnectionStatus('connecting'),
+            onConnected: () => setConnectionStatus('connected'),
+            onDisconnected: () => {
+                setConnectionStatus('disconnected');
+                setIsReady(false);
+            },
+            onRegistered: () => {
                 setIsReady(true);
                 setConnectionStatus('connected');
-            } else if (instance.ua.isConnected()) {
-                setConnectionStatus('connected');
-            }
-        } else {
-            // Create new instance
-            setConnectionStatus('connecting');
-
-            try {
-                const socket = new JsSIP.WebSocketInterface(config.websocketUrl);
-                const uaConfig = {
-                    sockets: [socket],
-                    uri: config.sipUri,
-                    password: config.password,
-                    registrar_server: config.registrarServer,
-                    display_name: config.displayName,
-                    authorization_user: config.authorizationUser,
-                    connection_recovery_min_interval: 2,
-                    connection_recovery_max_interval: 30,
-                };
-
-                const ua = new JsSIP.UA(uaConfig);
-
-                const audio = document.createElement('audio');
-                audio.autoplay = true;
-
-                instance = { ua, refCount: 1, audio };
-                uaInstances.set(configKey, instance);
-                uaRef.current = ua;
-
-                ua.on('connecting', () => {
-                    setConnectionStatus('connecting');
-                });
-
-                ua.on('connected', () => {
-                    setConnectionStatus('connected');
-                });
-
-                ua.on('disconnected', () => {
-                    setConnectionStatus('disconnected');
-                    setIsReady(false);
-                });
-
-                ua.on('registered', () => {
-                    setIsReady(true);
-                    setConnectionStatus('connected');
-                });
-
-                ua.on('unregistered', () => {
-                    setIsReady(false);
-                });
-
-                ua.on('registrationFailed', (e: any) => {
-                    console.error('Registration failed:', e?.cause);
-                    setIsReady(false);
-                    setConnectionStatus('failed');
-                });
-
-                ua.on('newRTCSession', (data: any) => {
-                    const session = data.session;
-
-                    if (session.direction !== 'outgoing') return;
-
-                    currentSessionRef.current = session;
-
-                    session.on('peerconnection', () => {
-                        session.connection.addEventListener('track', (e: RTCTrackEvent) => {
-                            if (e.streams && e.streams[0]) {
-                                const inst = uaInstances.get(configKey);
-                                if (inst?.audio) {
-                                    inst.audio.srcObject = e.streams[0];
-                                    inst.audio.play().catch(console.error);
-                                }
-                            }
-                        });
-                    });
-                });
-
-                ua.start();
-            } catch (error) {
-                console.error('Failed to create JsSIP UA:', error);
+            },
+            onUnregistered: () => setIsReady(false),
+            onRegistrationFailed: (cause) => {
+                console.error('Registration failed:', cause);
+                setIsReady(false);
                 setConnectionStatus('failed');
-                return;
-            }
-        }
-
+            },
+            onNewSession: (session) => {
+                currentSessionRef.current = session;
+            },
+        };
+        
+        addListener(instance, listener);
+        startUA(instance);
+        
         return () => {
-            const key = configKeyRef.current;
-            const inst = uaInstances.get(key);
-
-            if (inst) {
-                inst.refCount--;
-
-                // Only cleanup when no more references
-                if (inst.refCount <= 0) {
-                    if (inst.audio) {
-                        inst.audio.srcObject = null;
-                    }
-                    try {
-                        inst.ua.stop();
-                    } catch (e) {
-                        // Ignore errors during cleanup
-                    }
-                    uaInstances.delete(key);
-                }
-            }
-
-            uaRef.current = null;
+            removeListener(instance, listener);
+            // Don't stop the UA on unmount - it's global
         };
     }, [config.websocketUrl, config.sipUri, config.password, config.registrarServer, config.displayName, config.authorizationUser]);
 
@@ -255,7 +309,8 @@ export function PhoneProvider({
     }, []);
 
     const startCall = useCallback((number: string) => {
-        if (!number.trim() || !uaRef.current) return;
+        const instance = uaInstanceRef.current;
+        if (!number.trim() || !instance) return;
 
         // Check if UA is ready (registered)
         if (!isReady) {
@@ -305,7 +360,7 @@ export function PhoneProvider({
         setStatus('progress');
 
         try {
-            const session = uaRef.current.call(number, options);
+            const session = instance.ua.call(number, options);
             currentSessionRef.current = session;
         } catch (error) {
             console.error('Failed to start call:', error);
