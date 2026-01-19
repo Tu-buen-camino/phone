@@ -24,12 +24,23 @@ interface PhoneProviderProps {
     onStatusChange?: (status: PhoneStatus) => void;
 }
 
-export function PhoneProvider({ 
-    config, 
-    children, 
-    onCallStart, 
-    onCallEnd, 
-    onStatusChange 
+// Singleton map to store UA instances by config key
+const uaInstances = new Map<string, {
+    ua: JsSIP.UA;
+    refCount: number;
+    audio: HTMLAudioElement | null;
+}>();
+
+function getConfigKey(config: PhoneConfig): string {
+    return `${config.websocketUrl}|${config.sipUri}|${config.authorizationUser}`;
+}
+
+export function PhoneProvider({
+    config,
+    children,
+    onCallStart,
+    onCallEnd,
+    onStatusChange
 }: PhoneProviderProps) {
     const [callNumber, setCallNumber] = useState('');
     const [status, setStatus] = useState<PhoneStatus>('disconnected');
@@ -38,142 +49,140 @@ export function PhoneProvider({
     const [callHistory, setCallHistory] = useState<CallHistoryEntry[]>([]);
     const [isReady, setIsReady] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('disconnected');
-    
+
     const uaRef = useRef<JsSIP.UA | null>(null);
     const currentSessionRef = useRef<any>(null);
     const callStartedTSRef = useRef<number | null>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const isCleaningUpRef = useRef(false);
+    const configKeyRef = useRef<string>('');
 
     // Keep ref in sync with state
     useEffect(() => {
         callStartedTSRef.current = callStartedTS;
     }, [callStartedTS]);
 
-    // Initialize JsSIP UA
+    // Initialize JsSIP UA with singleton pattern
     useEffect(() => {
-        // Reset cleanup flag
-        isCleaningUpRef.current = false;
-        
-        // Cleanup previous UA if exists
-        if (uaRef.current) {
-            try {
-                uaRef.current.stop();
-            } catch (e) {
-                console.warn('Error stopping previous UA:', e);
-            }
-            uaRef.current = null;
-        }
+        const configKey = getConfigKey(config);
+        configKeyRef.current = configKey;
 
-        setConnectionStatus('connecting');
-        
-        let socket: JsSIP.WebSocketInterface;
-        let ua: JsSIP.UA;
-        
-        try {
-            socket = new JsSIP.WebSocketInterface(config.websocketUrl);
-            const uaConfig = {
-                sockets: [socket],
-                uri: config.sipUri,
-                password: config.password,
-                registrar_server: config.registrarServer,
-                display_name: config.displayName,
-                authorization_user: config.authorizationUser,
-                connection_recovery_min_interval: 2,
-                connection_recovery_max_interval: 30,
-            };
+        let instance = uaInstances.get(configKey);
 
-            ua = new JsSIP.UA(uaConfig);
-            uaRef.current = ua;
-        } catch (error) {
-            console.error('Failed to create JsSIP UA:', error);
-            setConnectionStatus('failed');
-            return;
-        }
+        if (instance) {
+            // Reuse existing instance
+            instance.refCount++;
+            uaRef.current = instance.ua;
 
-        ua.on('connecting', () => {
-            if (!isCleaningUpRef.current) {
-                setConnectionStatus('connecting');
-            }
-        });
-
-        ua.on('connected', () => {
-            if (!isCleaningUpRef.current) {
-                setConnectionStatus('connected');
-            }
-        });
-
-        ua.on('disconnected', () => {
-            if (!isCleaningUpRef.current) {
-                setConnectionStatus('disconnected');
-                setIsReady(false);
-            }
-        });
-
-        ua.on('registered', () => {
-            if (!isCleaningUpRef.current) {
+            // Check current state
+            if (instance.ua.isRegistered()) {
                 setIsReady(true);
                 setConnectionStatus('connected');
+            } else if (instance.ua.isConnected()) {
+                setConnectionStatus('connected');
             }
-        });
+        } else {
+            // Create new instance
+            setConnectionStatus('connecting');
 
-        ua.on('unregistered', () => {
-            if (!isCleaningUpRef.current) {
-                setIsReady(false);
-            }
-        });
+            try {
+                const socket = new JsSIP.WebSocketInterface(config.websocketUrl);
+                const uaConfig = {
+                    sockets: [socket],
+                    uri: config.sipUri,
+                    password: config.password,
+                    registrar_server: config.registrarServer,
+                    display_name: config.displayName,
+                    authorization_user: config.authorizationUser,
+                    connection_recovery_min_interval: 2,
+                    connection_recovery_max_interval: 30,
+                };
 
-        ua.on('registrationFailed', (e: any) => {
-            if (!isCleaningUpRef.current) {
-                console.error('Registration failed:', e?.cause);
-                setIsReady(false);
-                setConnectionStatus('failed');
-            }
-        });
+                const ua = new JsSIP.UA(uaConfig);
 
-        // Handle incoming/outgoing sessions - set up once here
-        ua.on('newRTCSession', (data: any) => {
-            if (isCleaningUpRef.current) return;
-            
-            const session = data.session;
-            
-            // Only handle outgoing calls
-            if (session.direction !== 'outgoing') return;
-            
-            currentSessionRef.current = session;
+                const audio = document.createElement('audio');
+                audio.autoplay = true;
 
-            session.on('peerconnection', () => {
-                session.connection.addEventListener('track', (e: RTCTrackEvent) => {
-                    if (e.streams && e.streams[0]) {
-                        if (!audioRef.current) {
-                            audioRef.current = document.createElement('audio');
-                            audioRef.current.autoplay = true;
-                        }
-                        audioRef.current.srcObject = e.streams[0];
-                        audioRef.current.play().catch(console.error);
-                    }
+                instance = { ua, refCount: 1, audio };
+                uaInstances.set(configKey, instance);
+                uaRef.current = ua;
+
+                ua.on('connecting', () => {
+                    setConnectionStatus('connecting');
                 });
-            });
-        });
 
-        ua.start();
+                ua.on('connected', () => {
+                    setConnectionStatus('connected');
+                });
+
+                ua.on('disconnected', () => {
+                    setConnectionStatus('disconnected');
+                    setIsReady(false);
+                });
+
+                ua.on('registered', () => {
+                    setIsReady(true);
+                    setConnectionStatus('connected');
+                });
+
+                ua.on('unregistered', () => {
+                    setIsReady(false);
+                });
+
+                ua.on('registrationFailed', (e: any) => {
+                    console.error('Registration failed:', e?.cause);
+                    setIsReady(false);
+                    setConnectionStatus('failed');
+                });
+
+                ua.on('newRTCSession', (data: any) => {
+                    const session = data.session;
+
+                    if (session.direction !== 'outgoing') return;
+
+                    currentSessionRef.current = session;
+
+                    session.on('peerconnection', () => {
+                        session.connection.addEventListener('track', (e: RTCTrackEvent) => {
+                            if (e.streams && e.streams[0]) {
+                                const inst = uaInstances.get(configKey);
+                                if (inst?.audio) {
+                                    inst.audio.srcObject = e.streams[0];
+                                    inst.audio.play().catch(console.error);
+                                }
+                            }
+                        });
+                    });
+                });
+
+                ua.start();
+            } catch (error) {
+                console.error('Failed to create JsSIP UA:', error);
+                setConnectionStatus('failed');
+                return;
+            }
+        }
 
         return () => {
-            isCleaningUpRef.current = true;
-            
-            if (audioRef.current) {
-                audioRef.current.srcObject = null;
-                audioRef.current = null;
-            }
-            
-            if (uaRef.current) {
-                try {
-                    uaRef.current.stop();
-                } catch (e) {
-                    // Ignore errors during cleanup
+            const key = configKeyRef.current;
+            const inst = uaInstances.get(key);
+
+            if (inst) {
+                inst.refCount--;
+
+                // Only cleanup when no more references
+                if (inst.refCount <= 0) {
+                    if (inst.audio) {
+                        inst.audio.srcObject = null;
+                    }
+                    try {
+                        inst.ua.stop();
+                    } catch (e) {
+                        // Ignore errors during cleanup
+                    }
+                    uaInstances.delete(key);
                 }
-                uaRef.current = null;
             }
+
+            uaRef.current = null;
         };
     }, [config.websocketUrl, config.sipUri, config.password, config.registrarServer, config.displayName, config.authorizationUser]);
 
@@ -294,7 +303,7 @@ export function PhoneProvider({
         };
 
         setStatus('progress');
-        
+
         try {
             const session = uaRef.current.call(number, options);
             currentSessionRef.current = session;
