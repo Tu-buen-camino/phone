@@ -33,12 +33,12 @@ function getConfigKey(config: PhoneConfig): string {
 
 function initializeUA(config: PhoneConfig): UAInstance {
     const configKey = getConfigKey(config);
-    
+
     // If already initialized with same config, return existing
     if (globalUA && currentConfigKey === configKey) {
         return globalUA;
     }
-    
+
     // If different config, stop existing UA
     if (globalUA && currentConfigKey !== configKey) {
         try {
@@ -48,9 +48,9 @@ function initializeUA(config: PhoneConfig): UAInstance {
         }
         globalUA = null;
     }
-    
+
     currentConfigKey = configKey;
-    
+
     const socket = new JsSIP.WebSocketInterface(config.websocketUrl);
     const uaConfig = {
         sockets: [socket],
@@ -66,14 +66,14 @@ function initializeUA(config: PhoneConfig): UAInstance {
     const ua = new JsSIP.UA(uaConfig);
     const audio = document.createElement('audio');
     audio.autoplay = true;
-    
+
     const instance: UAInstance = {
         ua,
         audio,
         isStarted: false,
         listeners: new Set(),
     };
-    
+
     // Set up UA event handlers that notify all listeners
     ua.on('connecting', () => {
         instance.listeners.forEach(l => l.onConnecting?.());
@@ -101,23 +101,30 @@ function initializeUA(config: PhoneConfig): UAInstance {
 
     ua.on('newRTCSession', (data: any) => {
         const session = data.session;
-        
+
         if (session.direction !== 'outgoing') return;
-        
+
         instance.listeners.forEach(l => l.onNewSession?.(session));
 
-        session.on('peerconnection', () => {
-            session.connection.addEventListener('track', (e: RTCTrackEvent) => {
-                if (e.streams && e.streams[0]) {
-                    instance.audio.srcObject = e.streams[0];
-                    instance.audio.play().catch(console.error);
-                }
+        if (session.connection) {
+            session.connection.addEventListener('addstream', (e: any) => {
+                var audio = document.createElement('audio');
+                if (e.streams === undefined) return;
+                if (e.streams.length === 0) return;
+                audio.srcObject = e.streams[0];
+                audio.play();
             });
-        });
+
+            session.connection.addEventListener('track', (e: any) => {
+                var audio = document.createElement('audio');
+                audio.srcObject = e.streams[0];
+                audio.play();
+            });
+        }
     });
 
     globalUA = instance;
-    
+
     return instance;
 }
 
@@ -198,7 +205,7 @@ export function PhoneProvider({
         // Initialize or get existing UA
         const instance = initializeUA(config);
         uaInstanceRef.current = instance;
-        
+
         // Check current state
         const state = getUAState(instance);
         if (state.isReady) {
@@ -207,7 +214,7 @@ export function PhoneProvider({
         } else if (state.isConnected) {
             setConnectionStatus('connected');
         }
-        
+
         // Create listener for this component instance
         const listener: UAEventListener = {
             onConnecting: () => setConnectionStatus('connecting'),
@@ -230,10 +237,10 @@ export function PhoneProvider({
                 currentSessionRef.current = session;
             },
         };
-        
+
         addListener(instance, listener);
         startUA(instance);
-        
+
         return () => {
             removeListener(instance, listener);
             // Don't stop the UA on unmount - it's global
