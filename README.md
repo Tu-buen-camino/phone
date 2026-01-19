@@ -1,15 +1,15 @@
-# @tbi/phone
+# @tbisoftware/phone
 
 A reusable SIP phone component for React applications built with Tailwind CSS and JsSIP.
 
 ## Installation
 
-npm install @tbi/phone
+npm install @tbisoftware/phone
 
 ## Usage
 
 ```tsx
-import { Phone } from "@tbi/phone";
+import { Phone } from "@tbisoftware/phone";
 
 const config = {
   websocketUrl: "wss://your-sip-server.com:8989",
