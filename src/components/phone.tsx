@@ -8,57 +8,57 @@ import { PhoneProvider, usePhone } from '../context/PhoneContext';
 // Icons as SVG components to avoid external dependencies
 const PhoneIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
     </svg>
 );
 
 const PhoneRingIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M15.05 5A7 7 0 0 1 19 8.95M15.05 1A11 11 0 0 1 23 8.94m-1 7.98v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+        <path d="M15.05 5A7 7 0 0 1 19 8.95M15.05 1A11 11 0 0 1 23 8.94m-1 7.98v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
 );
 
 const PhoneInTalkIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.02.24l-2.2 2.2c-2.83-1.45-5.15-3.76-6.59-6.59l2.2-2.21c.28-.26.36-.65.25-1C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1zM19 12h2c0-4.97-4.03-9-9-9v2c3.87 0 7 3.13 7 7zm-4 0h2c0-2.76-2.24-5-5-5v2c1.66 0 3 1.34 3 3z"/>
+        <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.02.24l-2.2 2.2c-2.83-1.45-5.15-3.76-6.59-6.59l2.2-2.21c.28-.26.36-.65.25-1C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1zM19 12h2c0-4.97-4.03-9-9-9v2c3.87 0 7 3.13 7 7zm-4 0h2c0-2.76-2.24-5-5-5v2c1.66 0 3 1.34 3 3z" />
     </svg>
 );
 
 const PhoneHangupIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
     </svg>
 );
 
 const PhoneMissedIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.5 5.5 12 11l7-7-1-1-6 6-4.5-4.5H11V3H5v6h1.5V5.5zm17.21 11.17C20.66 13.78 16.54 12 12 12 7.46 12 3.34 13.78.29 16.67c-.18.18-.29.43-.29.71s.11.53.29.71l2.48 2.48c.18.18.43.29.71.29.27 0 .52-.11.7-.28.79-.74 1.69-1.36 2.66-1.85.33-.16.56-.5.56-.9v-3.1c1.45-.48 3-.73 4.6-.73 1.6 0 3.15.25 4.6.72v3.1c0 .39.23.74.56.9.98.49 1.87 1.12 2.67 1.85.18.18.43.28.7.28.28 0 .53-.11.71-.29l2.48-2.48c.18-.18.29-.43.29-.71s-.12-.52-.3-.7z"/>
+        <path d="M6.5 5.5 12 11l7-7-1-1-6 6-4.5-4.5H11V3H5v6h1.5V5.5zm17.21 11.17C20.66 13.78 16.54 12 12 12 7.46 12 3.34 13.78.29 16.67c-.18.18-.29.43-.29.71s.11.53.29.71l2.48 2.48c.18.18.43.29.71.29.27 0 .52-.11.7-.28.79-.74 1.69-1.36 2.66-1.85.33-.16.56-.5.56-.9v-3.1c1.45-.48 3-.73 4.6-.73 1.6 0 3.15.25 4.6.72v3.1c0 .39.23.74.56.9.98.49 1.87 1.12 2.67 1.85.18.18.43.28.7.28.28 0 .53-.11.71-.29l2.48-2.48c.18-.18.29-.43.29-.71s-.12-.52-.3-.7z" />
     </svg>
 );
 
 const PhoneCheckIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-        <path d="M16 3l-5 5-2-2-1.5 1.5L11 11l6.5-6.5z"/>
+        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+        <path d="M16 3l-5 5-2-2-1.5 1.5L11 11l6.5-6.5z" />
     </svg>
 );
 
 const PhoneCancelIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-        <path d="M19 6.41L17.59 5 15 7.59 12.41 5 11 6.41 13.59 9 11 11.59 12.41 13 15 10.41 17.59 13 19 11.59 16.41 9z"/>
+        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+        <path d="M19 6.41L17.59 5 15 7.59 12.41 5 11 6.41 13.59 9 11 11.59 12.41 13 15 10.41 17.59 13 19 11.59 16.41 9z" />
     </svg>
 );
 
 const HistoryIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+        <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
     </svg>
 );
 
 const CloseIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
     </svg>
 );
 
@@ -124,7 +124,7 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
                             }
                         }}
                         placeholder={labels.placeholder}
-                        className="flex-1 h-8 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        className="flex-1 w-full h-8 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
 
                     {/* Call Button */}
@@ -209,11 +209,11 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
             {isHistoryOpen && (
                 <div className="fixed inset-0 z-50 flex">
                     {/* Backdrop */}
-                    <div 
-                        className="fixed inset-0 bg-black/50" 
-                        onClick={() => setIsHistoryOpen(false)} 
+                    <div
+                        className="fixed inset-0 bg-black/50"
+                        onClick={() => setIsHistoryOpen(false)}
                     />
-                    
+
                     {/* Sheet */}
                     <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl">
                         <div className="flex flex-col h-full">
@@ -222,8 +222,8 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
                                 <div>
                                     <h2 className="text-lg font-semibold">{labels.callHistory}</h2>
                                     <p className="text-sm text-gray-500">
-                                        {callHistory.length === 0 
-                                            ? labels.noCallsRegistered 
+                                        {callHistory.length === 0
+                                            ? labels.noCallsRegistered
                                             : `${callHistory.length} ${labels.callsRegistered}`
                                         }
                                     </p>
@@ -270,13 +270,13 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
 }
 
 // History Entry Component
-function HistoryEntry({ 
-    entry, 
-    index, 
-    onCall 
-}: { 
-    entry: CallHistoryEntry; 
-    index: number; 
+function HistoryEntry({
+    entry,
+    index,
+    onCall
+}: {
+    entry: CallHistoryEntry;
+    index: number;
     onCall: () => void;
 }) {
     const getStatusIcon = () => {
@@ -347,10 +347,10 @@ function HistoryEntry({
 // Main Phone Component
 export default function Phone({ config, className, onCallStart, onCallEnd, onStatusChange, labels }: PhoneProps) {
     return (
-        <PhoneProvider 
-            config={config} 
-            onCallStart={onCallStart} 
-            onCallEnd={onCallEnd} 
+        <PhoneProvider
+            config={config}
+            onCallStart={onCallStart}
+            onCallEnd={onCallEnd}
             onStatusChange={onStatusChange}
         >
             <PhoneUI className={className} labels={labels} />
