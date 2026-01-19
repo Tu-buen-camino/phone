@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+/* TBI Phone base styles */
+.tbi-phone {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Animation keyframes */
+@keyframes tbi-phone-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tbi-phone-slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Animation utilities */
+.tbi-phone-fade-in {
+  animation: tbi-phone-fade-in 0.3s ease-out;
+}
+
+.tbi-phone-slide-in {
+  animation: tbi-phone-slide-in-from-right 0.3s ease-out;
+}
