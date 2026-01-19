@@ -1,5 +1,5 @@
 {
-  "name": "@tbi/phone",
+  "name": "@tbisoftware/phone",
   "version": "1.0.0",
   "type": "module",
   "description": "A reusable SIP phone component for React applications",
