@@ -1,0 +1,1 @@
+"use strict";Object.defineProperty(exports,Symbol.toStringTag,{value:"Module"});const e=require("../index-DG7KwpzD.cjs");exports.PhoneManager=e.PhoneManager;exports.cn=e.cn;exports.defaultLabels=e.defaultLabels;exports.formatDuration=e.formatDuration;

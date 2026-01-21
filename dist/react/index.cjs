@@ -1,0 +1,1 @@
+"use strict";Object.defineProperties(exports,{__esModule:{value:!0},[Symbol.toStringTag]:{value:"Module"}});const e=require("../usePhoneManager-DjP4NN07.cjs");exports.Phone=e.Phone;exports.PhoneProvider=e.PhoneProvider;exports.default=e.Phone;exports.usePhone=e.usePhone;exports.usePhoneManager=e.usePhoneManager;
