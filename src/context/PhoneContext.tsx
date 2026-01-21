@@ -271,38 +271,6 @@ export function PhoneProvider({
         }
     }, [callHistory]);
 
-    // Update call duration timer
-    useEffect(() => {
-        if (status === 'confirmed' && callStartedTS) {
-            const interval = setInterval(() => {
-                setCurrentCallDuration(Math.floor((Date.now() - callStartedTS) / 1000));
-            }, 1000);
-            return () => clearInterval(interval);
-        } else {
-            setCurrentCallDuration(0);
-        }
-    }, [status, callStartedTS]);
-
-    // Listen for external StartCallEvent
-    useEffect(() => {
-        const handleStartCallEvent = (event: CustomEvent) => {
-            const numberToCall = event.detail.number;
-
-            if (!isReady) {
-                // Ensure UA is initialized
-                initializeUA(config);
-            }
-
-            if (status === 'disconnected') {
-                startCall(numberToCall);
-            }
-        };
-        window.addEventListener('StartCallEvent', handleStartCallEvent as EventListener);
-        return () => {
-            window.removeEventListener('StartCallEvent', handleStartCallEvent as EventListener);
-        };
-    }, [status]);
-
     const addToHistory = useCallback((number: string, duration: number, callStatus: 'completed' | 'failed' | 'missed') => {
         const entry: CallHistoryEntry = {
             id: Date.now().toString(),
@@ -382,6 +350,114 @@ export function PhoneProvider({
             setTimeout(() => setStatus('disconnected'), 3000);
         }
     }, [addToHistory, onCallStart, onCallEnd, isReady]);
+
+    // Update call duration timer
+    useEffect(() => {
+        if (status === 'confirmed' && callStartedTS) {
+            const interval = setInterval(() => {
+                setCurrentCallDuration(Math.floor((Date.now() - callStartedTS) / 1000));
+            }, 1000);
+            return () => clearInterval(interval);
+        } else {
+            setCurrentCallDuration(0);
+        }
+    }, [status, callStartedTS]);
+
+    // Listen for external StartCallEvent
+    useEffect(() => {
+        const handleStartCallEvent = (event: CustomEvent) => {
+            const numberToCall = event.detail.number;
+
+            if (status !== 'disconnected') return;
+
+            // If UA is ready, start call immediately
+            if (isReady && uaInstanceRef.current) {
+                startCall(numberToCall);
+                return;
+            }
+
+            // Initialize UA if not done yet
+            const instance = uaInstanceRef.current || initializeUA(config);
+            uaInstanceRef.current = instance;
+
+            // If already registered, start call
+            if (instance.ua.isRegistered()) {
+                setIsReady(true);
+                setConnectionStatus('connected');
+                startCall(numberToCall);
+                return;
+            }
+
+            // Create a one-time listener to wait for registration
+            const pendingCallListener: UAEventListener = {
+                onRegistered: () => {
+                    removeListener(instance, pendingCallListener);
+                    setIsReady(true);
+                    setConnectionStatus('connected');
+                    // Start the call after registration
+                    setCallNumber(numberToCall);
+                    onCallStart?.(numberToCall);
+
+                    const eventHandlers = {
+                        progress: () => setStatus('progress'),
+                        failed: (e: any) => {
+                            console.error('Call failed:', e?.cause);
+                            setStatus('failed');
+                            addToHistory(numberToCall, 0, 'failed');
+                            onCallEnd?.(numberToCall, 0, 'failed');
+                            currentSessionRef.current = null;
+                            setTimeout(() => setStatus('disconnected'), 3000);
+                        },
+                        ended: () => {
+                            setStatus('ended');
+                            const startTS = callStartedTSRef.current;
+                            const duration = startTS ? Math.floor((Date.now() - startTS) / 1000) : 0;
+                            addToHistory(numberToCall, duration, 'completed');
+                            onCallEnd?.(numberToCall, duration, 'completed');
+                            currentSessionRef.current = null;
+                            setTimeout(() => {
+                                setStatus('disconnected');
+                                setCallStartedTS(null);
+                            }, 2000);
+                        },
+                        confirmed: () => {
+                            setStatus('confirmed');
+                            setCallStartedTS(Date.now());
+                        },
+                    };
+
+                    const options = {
+                        eventHandlers,
+                        mediaConstraints: { audio: true, video: false },
+                    };
+
+                    setStatus('progress');
+
+                    try {
+                        const session = instance.ua.call(numberToCall, options);
+                        currentSessionRef.current = session;
+                    } catch (error) {
+                        console.error('Failed to start call:', error);
+                        setStatus('failed');
+                        addToHistory(numberToCall, 0, 'failed');
+                        setTimeout(() => setStatus('disconnected'), 3000);
+                    }
+                },
+                onRegistrationFailed: (cause) => {
+                    console.error('Registration failed while trying to start call:', cause);
+                    removeListener(instance, pendingCallListener);
+                    setConnectionStatus('failed');
+                },
+            };
+
+            addListener(instance, pendingCallListener);
+            startUA(instance);
+        };
+        window.addEventListener('StartCallEvent', handleStartCallEvent as EventListener);
+        return () => {
+            window.removeEventListener('StartCallEvent', handleStartCallEvent as EventListener);
+        };
+    }, [status, isReady, config, startCall, onCallStart, onCallEnd, addToHistory]);
 
     const value: PhoneContextValue = {
         status,
