@@ -1,6 +1,6 @@
 {
   "name": "@tbisoftware/phone",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "type": "module",
   "description": "A reusable SIP phone component for React and Vue applications",
   "author": "TBI",
