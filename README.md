@@ -1,6 +1,6 @@
 # @tbisoftware/phone
 
-A reusable SIP phone component for React applications built with Tailwind CSS and JsSIP.
+A reusable SIP phone component for **React** and **Vue** applications built with Tailwind CSS and JsSIP.
 
 ## Installation
 
@@ -10,21 +10,35 @@ npm install @tbisoftware/phone
 
 ## Features
 
-- 📞 Full SIP/WebRTC phone functionality
-- 🎨 Beautiful UI built with Tailwind CSS
-- 🪝 Headless mode with `usePhoneManager` hook for custom UIs
-- 📱 Call history with localStorage persistence
-- 🌐 Internationalization support with custom labels
-- ⚡ Singleton pattern for reliable WebSocket connections
+- Multi-framework support: **React** and **Vue 3**
+- Full SIP/WebRTC phone functionality
+- Beautiful UI built with Tailwind CSS
+- Headless mode with `usePhoneManager` hook/composable for custom UIs
+- Call history with localStorage persistence
+- Internationalization support with custom labels
+- Singleton pattern for reliable WebSocket connections
+- Framework-agnostic core for custom integrations
 
-## Usage
+## Entry Points
 
-### Option 1: Ready-to-use Component
+| Import Path | Description |
+|-------------|-------------|
+| `@tbisoftware/phone` | Default React exports (backward compatible) |
+| `@tbisoftware/phone/react` | Explicit React exports |
+| `@tbisoftware/phone/vue` | Vue 3 exports |
+| `@tbisoftware/phone/core` | Framework-agnostic core (PhoneManager class) |
 
-The simplest way to add a phone to your app:
+---
+
+# React Usage
+
+## Option 1: Ready-to-use Component
+
+The simplest way to add a phone to your React app:
 
 ```tsx
 import { Phone } from "@tbisoftware/phone";
+// or explicitly: import { Phone } from "@tbisoftware/phone/react";
 
 const config = {
   websocketUrl: "wss://your-sip-server.com:8989",
@@ -37,7 +51,7 @@ const config = {
 
 function App() {
   return (
-    <Phone 
+    <Phone
       config={config}
       onCallStart={(number) => console.log('Calling:', number)}
       onCallEnd={(number, duration, status) => {
@@ -48,7 +62,7 @@ function App() {
 }
 ```
 
-### Option 2: Headless Hook for Custom UI
+## Option 2: Headless Hook for Custom UI
 
 Use `usePhoneManager` to build your own phone interface:
 
@@ -80,101 +94,32 @@ function CustomPhone() {
     onCallEnd: (number, duration, status) => {
       console.log(`Call ended: ${number}, ${duration}s, ${status}`);
     },
-    onStatusChange: (status) => console.log('Status:', status),
-    onConnectionChange: (status) => console.log('Connection:', status),
   });
 
   return (
     <div className="p-4 border rounded-lg">
-      {/* Connection indicator */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-2 h-2 rounded-full ${
-          connectionStatus === 'connected' ? 'bg-green-500' :
-          connectionStatus === 'connecting' ? 'bg-yellow-500' :
-          'bg-red-500'
-        }`} />
-        <span className="text-sm text-gray-500">
-          {connectionStatus === 'connected' ? 'Ready' : 
-           connectionStatus === 'connecting' ? 'Connecting...' : 
-           'Disconnected'}
-        </span>
-      </div>
-
-      {/* Idle state - show input */}
       {status === 'disconnected' && (
         <div className="flex gap-2">
           <input
             type="tel"
             value={callNumber}
             onChange={(e) => setCallNumber(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && startCall(callNumber)}
             placeholder="Enter phone number"
-            className="flex-1 px-3 py-2 border rounded"
           />
           <button
             onClick={() => startCall(callNumber)}
             disabled={!isReady || callNumber.length < 9}
-            className="px-4 py-2 bg-green-500 text-white rounded disabled:opacity-50"
           >
             Call
           </button>
         </div>
       )}
 
-      {/* Calling state */}
-      {status === 'progress' && (
-        <div className="text-center">
-          <p className="text-lg">Calling {callNumber}...</p>
-          <button
-            onClick={endCall}
-            className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* In call */}
       {status === 'confirmed' && (
         <div className="text-center">
-          <p className="text-lg font-bold">{callNumber}</p>
-          <p className="text-2xl font-mono text-green-600">
-            {formatDuration(currentCallDuration)}
-          </p>
-          <button
-            onClick={endCall}
-            className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
-          >
-            Hang Up
-          </button>
-        </div>
-      )}
-
-      {/* Call history */}
-      {status === 'disconnected' && callHistory.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold mb-2">Recent Calls</h3>
-          <ul className="space-y-1">
-            {callHistory.slice(0, 5).map((entry) => (
-              <li 
-                key={entry.id}
-                className="flex justify-between text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
-                onClick={() => {
-                  setCallNumber(entry.number);
-                  startCall(entry.number);
-                }}
-              >
-                <span>{entry.number}</span>
-                <span className={
-                  entry.status === 'completed' ? 'text-green-500' :
-                  entry.status === 'failed' ? 'text-red-500' :
-                  'text-yellow-500'
-                }>
-                  {entry.status}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <p>{callNumber}</p>
+          <p>{formatDuration(currentCallDuration)}</p>
+          <button onClick={endCall}>Hang Up</button>
         </div>
       )}
     </div>
@@ -182,23 +127,15 @@ function CustomPhone() {
 }
 ```
 
-### Option 3: Using Provider and usePhone Hook
+## Option 3: Using Provider and usePhone Hook
 
-For more complex scenarios where you need to access phone state from multiple components:
+For complex scenarios where you need to access phone state from multiple components:
 
 ```tsx
 import { PhoneProvider, usePhone } from "@tbisoftware/phone";
 
-const config = {
-  websocketUrl: "wss://your-sip-server.com:8989",
-  sipUri: "sip:user@domain.com",
-  password: "your-password",
-  registrarServer: "sip:domain.com",
-  displayName: "User Name",
-  authorizationUser: "auth-user",
-};
+const config = { /* ... */ };
 
-// Wrap your app with the provider
 function App() {
   return (
     <PhoneProvider config={config}>
@@ -208,10 +145,9 @@ function App() {
   );
 }
 
-// Access phone state from any child component
 function PhoneDialer() {
   const { callNumber, setCallNumber, startCall, isReady } = usePhone();
-  
+
   return (
     <div>
       <input
@@ -227,9 +163,9 @@ function PhoneDialer() {
 
 function CallStatus() {
   const { status, currentCallDuration, endCall } = usePhone();
-  
+
   if (status === 'disconnected') return null;
-  
+
   return (
     <div>
       <p>Status: {status}</p>
@@ -240,9 +176,222 @@ function CallStatus() {
 }
 ```
 
-## API Reference
+---
 
-### `<Phone />` Component Props
+# Vue 3 Usage
+
+## Option 1: Ready-to-use Component
+
+```vue
+<script setup lang="ts">
+import { Phone } from "@tbisoftware/phone/vue";
+
+const config = {
+  websocketUrl: "wss://your-sip-server.com:8989",
+  sipUri: "sip:user@domain.com",
+  password: "your-password",
+  registrarServer: "sip:domain.com",
+  displayName: "User Name",
+  authorizationUser: "auth-user",
+};
+
+function handleCallStart(number: string) {
+  console.log('Calling:', number);
+}
+
+function handleCallEnd(number: string, duration: number, status: string) {
+  console.log(`Call to ${number} ${status}. Duration: ${duration}s`);
+}
+</script>
+
+<template>
+  <Phone
+    :config="config"
+    @call-start="handleCallStart"
+    @call-end="handleCallEnd"
+  />
+</template>
+```
+
+## Option 2: Headless Composable for Custom UI
+
+Use `usePhoneManager` to build your own phone interface:
+
+```vue
+<script setup lang="ts">
+import { usePhoneManager } from "@tbisoftware/phone/vue";
+import { formatDuration } from "@tbisoftware/phone/core";
+
+const config = {
+  websocketUrl: "wss://your-sip-server.com:8989",
+  sipUri: "sip:user@domain.com",
+  password: "your-password",
+  registrarServer: "sip:domain.com",
+  displayName: "User Name",
+  authorizationUser: "auth-user",
+};
+
+const {
+  status,
+  callNumber,
+  setCallNumber,
+  callHistory,
+  currentCallDuration,
+  startCall,
+  endCall,
+  isReady,
+  connectionStatus,
+} = usePhoneManager(config, {
+  onCallStart: (number) => console.log('Starting call to:', number),
+  onCallEnd: (number, duration, status) => {
+    console.log(`Call ended: ${number}, ${duration}s, ${status}`);
+  },
+});
+</script>
+
+<template>
+  <div class="p-4 border rounded-lg">
+    <div v-if="status === 'disconnected'" class="flex gap-2">
+      <input
+        type="tel"
+        :value="callNumber"
+        @input="setCallNumber(($event.target as HTMLInputElement).value)"
+        placeholder="Enter phone number"
+      />
+      <button
+        @click="startCall(callNumber)"
+        :disabled="!isReady || callNumber.length < 9"
+      >
+        Call
+      </button>
+    </div>
+
+    <div v-if="status === 'confirmed'" class="text-center">
+      <p>{{ callNumber }}</p>
+      <p>{{ formatDuration(currentCallDuration) }}</p>
+      <button @click="endCall">Hang Up</button>
+    </div>
+  </div>
+</template>
+```
+
+## Option 3: Using Provider and usePhone Composable
+
+For complex scenarios where you need to access phone state from multiple components:
+
+```vue
+<!-- App.vue -->
+<script setup lang="ts">
+import { usePhoneProvider } from "@tbisoftware/phone/vue";
+import PhoneDialer from './PhoneDialer.vue';
+import CallStatus from './CallStatus.vue';
+
+const config = { /* ... */ };
+
+usePhoneProvider({ config });
+</script>
+
+<template>
+  <PhoneDialer />
+  <CallStatus />
+</template>
+```
+
+```vue
+<!-- PhoneDialer.vue -->
+<script setup lang="ts">
+import { usePhone } from "@tbisoftware/phone/vue";
+
+const { callNumber, setCallNumber, startCall, isReady } = usePhone();
+</script>
+
+<template>
+  <div>
+    <input
+      :value="callNumber"
+      @input="setCallNumber(($event.target as HTMLInputElement).value)"
+    />
+    <button @click="startCall(callNumber)" :disabled="!isReady">
+      Call
+    </button>
+  </div>
+</template>
+```
+
+```vue
+<!-- CallStatus.vue -->
+<script setup lang="ts">
+import { usePhone } from "@tbisoftware/phone/vue";
+
+const { status, currentCallDuration, endCall } = usePhone();
+</script>
+
+<template>
+  <div v-if="status !== 'disconnected'">
+    <p>Status: {{ status }}</p>
+    <p v-if="status === 'confirmed'">Duration: {{ currentCallDuration }}s</p>
+    <button @click="endCall">End Call</button>
+  </div>
+</template>
+```
+
+---
+
+# Core Usage (Framework-Agnostic)
+
+For custom integrations or other frameworks, you can use the `PhoneManager` class directly:
+
+```typescript
+import { PhoneManager } from "@tbisoftware/phone/core";
+
+const config = {
+  websocketUrl: "wss://your-sip-server.com:8989",
+  sipUri: "sip:user@domain.com",
+  password: "your-password",
+  registrarServer: "sip:domain.com",
+  displayName: "User Name",
+  authorizationUser: "auth-user",
+};
+
+const manager = new PhoneManager(
+  config,
+  {
+    onStatusChange: (status) => console.log('Status:', status),
+    onCallStart: (number) => console.log('Calling:', number),
+    onCallEnd: (number, duration, status) => {
+      console.log(`Call ended: ${number}, ${duration}s, ${status}`);
+    },
+    onConnectionChange: (status) => console.log('Connection:', status),
+  },
+  {
+    persistHistory: true,
+    historyKey: 'my-phone-history',
+  }
+);
+
+// Initialize the phone
+manager.initialize();
+
+// Make a call
+manager.startCall('+1234567890');
+
+// End the call
+manager.endCall();
+
+// Access state
+console.log(manager.state.status);
+console.log(manager.state.isReady);
+console.log(manager.state.callHistory);
+
+// Clean up when done
+manager.destroy();
+```
+
+---
+
+# API Reference
+
+## `<Phone />` Component Props
 
 | Prop | Type | Description |
 |------|------|-------------|
@@ -253,7 +402,7 @@ function CallStatus() {
 | `onStatusChange` | `(status: PhoneStatus) => void` | Callback when status changes |
 | `labels` | `Partial<PhoneLabels>` | Custom labels for internationalization |
 
-### `usePhoneManager(config, options)` Hook
+## `usePhoneManager(config, options)` Hook/Composable
 
 Returns an object with:
 
@@ -271,7 +420,7 @@ Returns an object with:
 | `connectionStatus` | `ConnectionStatus` | `'connecting' \| 'connected' \| 'disconnected' \| 'failed'` |
 | `ua` | `JsSIP.UA \| null` | Raw JsSIP User Agent for advanced usage |
 
-#### Options
+### Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -282,7 +431,7 @@ Returns an object with:
 | `persistHistory` | `boolean` | `true` | Save history to localStorage |
 | `historyKey` | `string` | `'tbi-phone-call-history'` | localStorage key for history |
 
-### `PhoneConfig` Type
+## `PhoneConfig` Type
 
 ```typescript
 interface PhoneConfig {
@@ -295,7 +444,7 @@ interface PhoneConfig {
 }
 ```
 
-### `PhoneLabels` Type
+## `PhoneLabels` Type
 
 ```typescript
 interface PhoneLabels {
@@ -319,9 +468,8 @@ interface PhoneLabels {
 You can trigger a call from anywhere in your app using a custom event:
 
 ```javascript
-// Dispatch this event to start a call
-window.dispatchEvent(new CustomEvent('StartCallEvent', { 
-  detail: { number: '+1234567890' } 
+window.dispatchEvent(new CustomEvent('StartCallEvent', {
+  detail: { number: '+1234567890' }
 }));
 ```
 
@@ -333,6 +481,16 @@ The component uses Tailwind CSS classes. Make sure you have Tailwind CSS configu
 .tbi-phone {
   /* Your custom styles */
 }
+```
+
+## Migration from v1 to v2
+
+If you're upgrading from v1 (React-only), your code should continue to work without changes. The default export still provides React components.
+
+For explicit React imports (recommended):
+```diff
+- import { Phone } from "@tbisoftware/phone";
++ import { Phone } from "@tbisoftware/phone/react";
 ```
 
 ## License

@@ -1,16 +1,26 @@
-import Phone from './components/phone';
+// Main entry point - exports React components by default for backward compatibility
+// For Vue, use: import { Phone } from '@tbisoftware/phone/vue'
+// For core only, use: import { PhoneManager } from '@tbisoftware/phone/core'
 
-// Main exports
-export { Phone };
-export { PhoneProvider, usePhone } from './context/PhoneContext';
+// React exports (default for backward compatibility)
+export { Phone, PhoneProvider, usePhone, usePhoneManager } from './react';
+export type { UsePhoneManagerOptions, UsePhoneManagerReturn, ConnectionStatus } from './react';
 
-// Hooks for custom implementations
-export { usePhoneManager } from './hooks/usePhoneManager';
-export type { UsePhoneManagerOptions, UsePhoneManagerReturn, ConnectionStatus } from './hooks/usePhoneManager';
+// Re-export types for convenience
+export type {
+    PhoneProps,
+    PhoneConfig,
+    PhoneStatus,
+    CallHistoryEntry,
+    PhoneLabels,
+} from './types';
 
-// Types
-export type { PhoneProps, CallHistoryEntry, PhoneStatus, PhoneConfig, PhoneLabels } from './types';
+export { defaultLabels } from './types';
 
 // Utilities
 export { formatDuration } from './utils/formatDuration';
 export { cn } from './utils/cn';
+
+// Default export is the React Phone component
+import { Phone } from './react';
+export default Phone;
