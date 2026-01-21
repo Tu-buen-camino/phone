@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 import dts from 'vite-plugin-dts'
@@ -8,6 +9,7 @@ import dts from 'vite-plugin-dts'
 export default defineConfig({
   plugins: [
     react(),
+    vue(),
     tailwindcss(),
     dts({
       insertTypesEntry: true,
@@ -17,19 +19,32 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: {
+        index: resolve(__dirname, 'src/index.ts'),
+        'react/index': resolve(__dirname, 'src/react/index.ts'),
+        'vue/index': resolve(__dirname, 'src/vue/index.ts'),
+        'core/index': resolve(__dirname, 'src/core/index.ts'),
+      },
       name: 'TBIPhone',
       formats: ['es', 'cjs'],
-      fileName: (format) => `index.${format === 'es' ? 'js' : 'cjs'}`,
+      fileName: (format, entryName) => `${entryName}.${format === 'es' ? 'js' : 'cjs'}`,
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'react/jsx-runtime'],
+      external: [
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+        'vue',
+      ],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
           'react/jsx-runtime': 'jsxRuntime',
+          vue: 'Vue',
         },
+        // Preserve directory structure
+        preserveModules: false,
       },
     },
     cssCodeSplit: false,
