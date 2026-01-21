@@ -283,7 +283,12 @@ export class PhoneManager {
             const customEvent = event as CustomEvent;
             const numberToCall = customEvent.detail.number;
             if (this._state.status === 'disconnected') {
-                this.startCall(numberToCall);
+                // If UA is not initialized or not ready, initialize first and wait for registration
+                if (!this.uaInstance || !this._state.isReady) {
+                    this.initializeAndCall(numberToCall);
+                } else {
+                    this.startCall(numberToCall);
+                }
             }
         };
         window.addEventListener('StartCallEvent', this.startCallEventListener);
@@ -403,6 +408,64 @@ export class PhoneManager {
         if (this.currentSession) {
             this.currentSession.terminate();
             this.currentSession = null;
+        }
+    }
+
+    /**
+     * Initialize the phone and start a call once registered
+     */
+    private initializeAndCall(number: string): void {
+        // If already initialized and ready, just call
+        if (this.uaInstance && this._state.isReady) {
+            this.startCall(number);
+            return;
+        }
+
+        // Initialize if not done yet
+        if (!this.uaInstance) {
+            this.uaInstance = getOrCreateUA(this.config);
+
+            // Check current state
+            if (this.uaInstance.ua.isRegistered()) {
+                this.updateState({ isReady: true, connectionStatus: 'connected' });
+            } else if (this.uaInstance.ua.isConnected()) {
+                this.updateState({ connectionStatus: 'connected' });
+            }
+
+            // Add listener
+            this.uaInstance.listeners.add(this.listener);
+
+            // Load history from localStorage
+            this.loadHistory();
+        }
+
+        // If already registered, start the call immediately
+        if (this.uaInstance.ua.isRegistered()) {
+            this.updateState({ isReady: true, connectionStatus: 'connected' });
+            this.startCall(number);
+            return;
+        }
+
+        // Create a one-time listener to wait for registration
+        const pendingCallListener: UAEventListener = {
+            onRegistered: () => {
+                // Remove this temporary listener
+                this.uaInstance?.listeners.delete(pendingCallListener);
+                // Now start the call
+                this.startCall(number);
+            },
+            onRegistrationFailed: (cause) => {
+                console.error('Registration failed while trying to start call:', cause);
+                this.uaInstance?.listeners.delete(pendingCallListener);
+            },
+        };
+
+        this.uaInstance.listeners.add(pendingCallListener);
+
+        // Start UA if not started
+        if (!this.uaInstance.isStarted) {
+            this.uaInstance.ua.start();
+            this.uaInstance.isStarted = true;
         }
     }
 
