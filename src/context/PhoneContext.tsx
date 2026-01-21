@@ -287,6 +287,12 @@ export function PhoneProvider({
     useEffect(() => {
         const handleStartCallEvent = (event: CustomEvent) => {
             const numberToCall = event.detail.number;
+
+            if (!isReady) {
+                // Ensure UA is initialized
+                initializeUA(config);
+            }
+
             if (status === 'disconnected') {
                 startCall(numberToCall);
             }
