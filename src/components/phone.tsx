@@ -62,6 +62,12 @@ const CloseIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+const PowerIcon = ({ className }: { className?: string }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" />
+    </svg>
+);
+
 // Internal Phone UI Component
 function PhoneUI({ className, labels: customLabels }: { className?: string; labels?: Partial<typeof defaultLabels> }) {
     const {
@@ -74,6 +80,8 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
         endCall,
         isReady,
         connectionStatus,
+        isInitialized,
+        initialize,
     } = usePhone();
 
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -101,8 +109,22 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
             'tbi-phone w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg border border-gray-200 p-2',
             className
         )}>
-            {/* Disconnected - Input Mode */}
-            {status === 'disconnected' && (
+            {/* Not Initialized - Power Button */}
+            {!isInitialized && (
+                <div className="flex items-center justify-center">
+                    <button
+                        onClick={initialize}
+                        className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-green-100 hover:text-green-600 text-gray-500 transition-colors"
+                        type="button"
+                        title={labels.turnOn}
+                    >
+                        <PowerIcon className="w-5 h-5" />
+                    </button>
+                </div>
+            )}
+
+            {/* Disconnected - Input Mode (only when initialized) */}
+            {isInitialized && status === 'disconnected' && (
                 <div className="flex gap-2 items-center">
                     {/* History Button */}
                     <button

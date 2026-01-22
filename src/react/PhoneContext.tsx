@@ -164,6 +164,8 @@ interface PhoneContextValue {
     endCall: () => void;
     isReady: boolean;
     connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'failed';
+    isInitialized: boolean;
+    initialize: () => void;
 }
 
 const PhoneContext = createContext<PhoneContextValue | null>(null);
@@ -189,7 +191,8 @@ export function PhoneProvider({
     const [currentCallDuration, setCurrentCallDuration] = useState(0);
     const [callHistory, setCallHistory] = useState<CallHistoryEntry[]>([]);
     const [isReady, setIsReady] = useState(false);
-    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('connecting');
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('disconnected');
+    const [isInitialized, setIsInitialized] = useState(false);
 
     const currentSessionRef = useRef<any>(null);
     const callStartedTSRef = useRef<number | null>(null);
@@ -200,8 +203,18 @@ export function PhoneProvider({
         callStartedTSRef.current = callStartedTS;
     }, [callStartedTS]);
 
+    // Initialize function to start the UA
+    const initialize = useCallback(() => {
+        if (isInitialized) return;
+        setIsInitialized(true);
+        setConnectionStatus('connecting');
+    }, [isInitialized]);
+
     // Initialize UA (outside of React lifecycle)
     useEffect(() => {
+        // Only initialize if the user has clicked the power button
+        if (!isInitialized) return;
+
         // Initialize or get existing UA
         const instance = initializeUA(config);
         uaInstanceRef.current = instance;
@@ -245,7 +258,7 @@ export function PhoneProvider({
             removeListener(instance, listener);
             // Don't stop the UA on unmount - it's global
         };
-    }, [config.websocketUrl, config.sipUri, config.password, config.registrarServer, config.displayName, config.authorizationUser]);
+    }, [isInitialized, config.websocketUrl, config.sipUri, config.password, config.registrarServer, config.displayName, config.authorizationUser]);
 
     // Notify status changes
     useEffect(() => {
@@ -387,6 +400,8 @@ export function PhoneProvider({
         endCall,
         isReady,
         connectionStatus,
+        isInitialized,
+        initialize,
     };
 
     return (

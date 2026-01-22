@@ -56,6 +56,7 @@ export interface PhoneLabels {
     noCalls: string;
     startingCall: string;
     callInProgress: string;
+    turnOn: string;
 }
 
 export const defaultLabels: PhoneLabels = {
@@ -74,4 +75,5 @@ export const defaultLabels: PhoneLabels = {
     noCalls: 'No hay llamadas',
     startingCall: 'Iniciando llamada a',
     callInProgress: 'Ya hay una llamada en curso',
+    turnOn: 'Encender teléfono',
 };
