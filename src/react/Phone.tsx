@@ -163,7 +163,7 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
                         title={!isReady ? 'Connecting...' : 'Call'}
                     >
                         {connectionStatus === 'connecting' ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <div className="w-4 h-4 border-2 border-white rounded-full animate-spin" />
                         ) : (
                             <PhoneIcon className="w-4 h-4" />
                         )}
@@ -203,9 +203,7 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
                     <div className="text-center">
                         <p className="text-sm text-gray-500">{labels.incomingCall}</p>
                         <p className="text-base font-semibold">{incomingCall.callerNumber}</p>
-                        {incomingCall.callerName && (
-                            <p className="text-sm text-gray-600">{incomingCall.callerName}</p>
-                        )}
+
                     </div>
                     <div className="flex gap-3">
                         <button
