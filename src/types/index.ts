@@ -6,7 +6,7 @@ export interface CallHistoryEntry {
     status: 'completed' | 'failed' | 'missed';
 }
 
-export type PhoneStatus = 'disconnected' | 'progress' | 'confirmed' | 'failed' | 'ended';
+export type PhoneStatus = 'disconnected' | 'progress' | 'confirmed' | 'failed' | 'ended' | 'ringing';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed';
 
@@ -36,6 +36,8 @@ export interface PhoneProps {
     onCallEnd?: (number: string, duration: number, status: 'completed' | 'failed') => void;
     /** Callback when status changes */
     onStatusChange?: (status: PhoneStatus) => void;
+    /** Callback when an incoming call is received */
+    onIncomingCall?: (callerNumber: string, callerName?: string) => void;
     /** Custom labels for internationalization */
     labels?: Partial<PhoneLabels>;
 }
@@ -57,6 +59,9 @@ export interface PhoneLabels {
     startingCall: string;
     callInProgress: string;
     turnOn: string;
+    incomingCall: string;
+    answer: string;
+    reject: string;
 }
 
 export const defaultLabels: PhoneLabels = {
@@ -76,4 +81,7 @@ export const defaultLabels: PhoneLabels = {
     startingCall: 'Iniciando llamada a',
     callInProgress: 'Ya hay una llamada en curso',
     turnOn: 'Encender teléfono',
+    incomingCall: 'Llamada entrante',
+    answer: 'Contestar',
+    reject: 'Rechazar',
 };

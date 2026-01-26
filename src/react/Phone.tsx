@@ -78,10 +78,13 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
         currentCallDuration,
         startCall,
         endCall,
+        answerCall,
+        rejectCall,
         isReady,
         connectionStatus,
         isInitialized,
         initialize,
+        incomingCall,
     } = usePhone();
 
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -89,6 +92,8 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
 
     const getStatusInfo = () => {
         switch (status) {
+            case 'ringing':
+                return { text: labels.incomingCall, color: 'text-blue-500', Icon: PhoneRingIcon };
             case 'progress':
                 return { text: `${labels.calling}...`, color: 'text-yellow-500', Icon: PhoneRingIcon };
             case 'confirmed':
@@ -185,6 +190,41 @@ function PhoneUI({ className, labels: customLabels }: { className?: string; labe
                         <PhoneHangupIcon className="w-4 h-4" />
                         {labels.cancel}
                     </button>
+                </div>
+            )}
+
+            {/* Ringing - Incoming Call */}
+            {status === 'ringing' && incomingCall && (
+                <div className="flex flex-col items-center gap-3 py-6">
+                    <div className="relative">
+                        <statusInfo.Icon className="w-12 h-12 text-blue-500 animate-bounce" />
+                        <div className="absolute inset-0 rounded-full border-4 border-blue-500/30 animate-ping" />
+                    </div>
+                    <div className="text-center">
+                        <p className="text-sm text-gray-500">{labels.incomingCall}</p>
+                        <p className="text-base font-semibold">{incomingCall.callerNumber}</p>
+                        {incomingCall.callerName && (
+                            <p className="text-sm text-gray-600">{incomingCall.callerName}</p>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={rejectCall}
+                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors"
+                            type="button"
+                        >
+                            <PhoneHangupIcon className="w-4 h-4" />
+                            {labels.reject}
+                        </button>
+                        <button
+                            onClick={answerCall}
+                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-colors"
+                            type="button"
+                        >
+                            <PhoneIcon className="w-4 h-4" />
+                            {labels.answer}
+                        </button>
+                    </div>
                 </div>
             )}
 

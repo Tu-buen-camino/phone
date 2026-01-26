@@ -17,6 +17,7 @@ interface Props {
     onCallStart?: (number: string) => void;
     onCallEnd?: (number: string, duration: number, status: 'completed' | 'failed') => void;
     onStatusChange?: (status: PhoneStatus) => void;
+    onIncomingCall?: (callerNumber: string, callerName?: string) => void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -28,6 +29,7 @@ const emit = defineEmits<{
     (e: 'callStart', number: string): void;
     (e: 'callEnd', number: string, duration: number, status: 'completed' | 'failed'): void;
     (e: 'statusChange', status: PhoneStatus): void;
+    (e: 'incomingCall', callerNumber: string, callerName?: string): void;
 }>();
 
 // ============================================
@@ -49,6 +51,7 @@ interface UAEventListener {
     onUnregistered?: () => void;
     onRegistrationFailed?: (cause?: string) => void;
     onNewSession?: (session: any) => void;
+    onIncomingSession?: (session: any, callerNumber: string, callerName?: string) => void;
 }
 
 let globalUA: UAInstance | null = null;
@@ -126,7 +129,31 @@ function initializeUA(config: PhoneConfig): UAInstance {
     ua.on('newRTCSession', (data: any) => {
         const session = data.session;
 
-        if (session.direction !== 'outgoing') return;
+        // Handle incoming calls
+        if (session.direction === 'incoming') {
+            const remoteIdentity = session.remote_identity;
+            const callerNumber = remoteIdentity?.uri?.user || 'Unknown';
+            const callerName = remoteIdentity?.display_name || undefined;
+            
+            instance.listeners.forEach(l => l.onIncomingSession?.(session, callerNumber, callerName));
+
+            // Set up audio handling for incoming calls
+            session.on('peerconnection', () => {
+                session.connection.addEventListener('addstream', (e: any) => {
+                    if (!e.streams?.length) return;
+                    const audioEl = document.createElement('audio');
+                    audioEl.srcObject = e.streams[0];
+                    audioEl.play();
+                });
+
+                session.connection.addEventListener('track', (e: any) => {
+                    const audioEl = document.createElement('audio');
+                    audioEl.srcObject = e.streams[0];
+                    audioEl.play();
+                });
+            });
+            return;
+        }
 
         instance.listeners.forEach(l => l.onNewSession?.(session));
 
@@ -154,6 +181,12 @@ function initializeUA(config: PhoneConfig): UAInstance {
 // State
 // ============================================
 
+interface IncomingCallInfo {
+    session: any;
+    callerNumber: string;
+    callerName?: string;
+}
+
 const status = ref<PhoneStatus>('disconnected');
 const callNumber = ref('');
 const callHistory = ref<CallHistoryEntry[]>([]);
@@ -161,6 +194,7 @@ const currentCallDuration = ref(0);
 const isReady = ref(false);
 const connectionStatus = ref<ConnectionStatus>('connecting');
 const isHistoryOpen = ref(false);
+const incomingCall = ref<IncomingCallInfo | null>(null);
 
 let uaInstance: UAInstance | null = null;
 let currentSession: any = null;
@@ -176,6 +210,8 @@ const labels = computed(() => ({ ...defaultLabels, ...props.labels }));
 
 const statusInfo = computed(() => {
     switch (status.value) {
+        case 'ringing':
+            return { text: labels.value.incomingCall, color: 'text-blue-500', icon: 'ring' };
         case 'progress':
             return { text: `${labels.value.calling}...`, color: 'text-yellow-500', icon: 'ring' };
         case 'confirmed':
@@ -210,6 +246,54 @@ function endCall() {
         currentSession.terminate();
         currentSession = null;
     }
+    incomingCall.value = null;
+}
+
+function answerCall() {
+    if (!incomingCall.value) return;
+
+    const { session, callerNumber: caller } = incomingCall.value;
+
+    const answerOptions = {
+        mediaConstraints: { audio: true, video: false },
+    };
+
+    try {
+        session.answer(answerOptions);
+        currentSession = session;
+        props.onCallStart?.(caller);
+        emit('callStart', caller);
+    } catch (error) {
+        console.error('Failed to answer call:', error);
+        status.value = 'failed';
+        props.onStatusChange?.('failed');
+        emit('statusChange', 'failed');
+        addToHistory(caller, 0, 'missed');
+        incomingCall.value = null;
+        setTimeout(() => {
+            status.value = 'disconnected';
+            props.onStatusChange?.('disconnected');
+            emit('statusChange', 'disconnected');
+        }, 3000);
+    }
+}
+
+function rejectCall() {
+    if (!incomingCall.value) return;
+
+    const { session, callerNumber: caller } = incomingCall.value;
+
+    try {
+        session.terminate({ status_code: 603, reason_phrase: 'Decline' });
+    } catch (error) {
+        console.error('Failed to reject call:', error);
+    }
+
+    addToHistory(caller, 0, 'missed');
+    incomingCall.value = null;
+    status.value = 'disconnected';
+    props.onStatusChange?.('disconnected');
+    emit('statusChange', 'disconnected');
 }
 
 function startCall(number: string) {
@@ -393,6 +477,73 @@ onMounted(() => {
         onNewSession: (session) => {
             currentSession = session;
         },
+        onIncomingSession: (session, callerNum, callerName) => {
+            // Only handle if not already in a call
+            if (currentSession) {
+                session.terminate({ status_code: 486, reason_phrase: 'Busy Here' });
+                return;
+            }
+
+            incomingCall.value = { session, callerNumber: callerNum, callerName };
+            callNumber.value = callerNum;
+            status.value = 'ringing';
+            props.onStatusChange?.('ringing');
+            emit('statusChange', 'ringing');
+            props.onIncomingCall?.(callerNum, callerName);
+            emit('incomingCall', callerNum, callerName);
+
+            // Set up session event handlers for incoming calls
+            session.on('failed', (e: any) => {
+                console.error('Incoming call failed:', e?.cause);
+                status.value = 'failed';
+                props.onStatusChange?.('failed');
+                emit('statusChange', 'failed');
+                addToHistory(callerNum, 0, 'missed');
+                incomingCall.value = null;
+                currentSession = null;
+                setTimeout(() => {
+                    status.value = 'disconnected';
+                    props.onStatusChange?.('disconnected');
+                    emit('statusChange', 'disconnected');
+                }, 3000);
+            });
+
+            session.on('ended', () => {
+                status.value = 'ended';
+                props.onStatusChange?.('ended');
+                emit('statusChange', 'ended');
+                const duration = callStartedTS ? Math.floor((Date.now() - callStartedTS) / 1000) : 0;
+                addToHistory(callerNum, duration, 'completed');
+                props.onCallEnd?.(callerNum, duration, 'completed');
+                emit('callEnd', callerNum, duration, 'completed');
+                incomingCall.value = null;
+                currentSession = null;
+                if (durationInterval) {
+                    clearInterval(durationInterval);
+                    durationInterval = null;
+                }
+                setTimeout(() => {
+                    status.value = 'disconnected';
+                    props.onStatusChange?.('disconnected');
+                    emit('statusChange', 'disconnected');
+                    callStartedTS = null;
+                    currentCallDuration.value = 0;
+                }, 2000);
+            });
+
+            session.on('confirmed', () => {
+                status.value = 'confirmed';
+                props.onStatusChange?.('confirmed');
+                emit('statusChange', 'confirmed');
+                callStartedTS = Date.now();
+                incomingCall.value = null;
+                durationInterval = setInterval(() => {
+                    if (callStartedTS) {
+                        currentCallDuration.value = Math.floor((Date.now() - callStartedTS) / 1000);
+                    }
+                }, 1000);
+            });
+        },
     };
 
     uaInstance.listeners.add(listener);
@@ -495,6 +646,43 @@ onUnmounted(() => {
                 </svg>
                 {{ labels.cancel }}
             </button>
+        </div>
+
+        <!-- Ringing - Incoming Call -->
+        <div v-if="status === 'ringing' && incomingCall" class="flex flex-col items-center gap-3 py-6">
+            <div class="relative">
+                <svg class="w-12 h-12 text-blue-500 animate-bounce" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.05 5A7 7 0 0 1 19 8.95M15.05 1A11 11 0 0 1 23 8.94m-1 7.98v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+                <div class="absolute inset-0 rounded-full border-4 border-blue-500/30 animate-ping" />
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-500">{{ labels.incomingCall }}</p>
+                <p class="text-base font-semibold">{{ incomingCall.callerNumber }}</p>
+                <p v-if="incomingCall.callerName" class="text-sm text-gray-600">{{ incomingCall.callerName }}</p>
+            </div>
+            <div class="flex gap-3">
+                <button
+                    @click="rejectCall"
+                    class="flex items-center gap-2 px-6 py-2 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors"
+                    type="button"
+                >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
+                    </svg>
+                    {{ labels.reject }}
+                </button>
+                <button
+                    @click="answerCall"
+                    class="flex items-center gap-2 px-6 py-2 rounded-full bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-colors"
+                    type="button"
+                >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                    </svg>
+                    {{ labels.answer }}
+                </button>
+            </div>
         </div>
 
         <!-- Confirmed - In Call -->

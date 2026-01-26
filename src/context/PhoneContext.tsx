@@ -21,6 +21,7 @@ interface UAEventListener {
     onUnregistered?: () => void;
     onRegistrationFailed?: (cause?: string) => void;
     onNewSession?: (session: any) => void;
+    onIncomingSession?: (session: any, callerNumber: string, callerName?: string) => void;
 }
 
 // Single global UA instance
@@ -102,7 +103,32 @@ function initializeUA(config: PhoneConfig): UAInstance {
     ua.on('newRTCSession', (data: any) => {
         const session = data.session;
 
-        if (session.direction !== 'outgoing') return;
+        // Handle incoming calls
+        if (session.direction === 'incoming') {
+            const remoteIdentity = session.remote_identity;
+            const callerNumber = remoteIdentity?.uri?.user || 'Unknown';
+            const callerName = remoteIdentity?.display_name || undefined;
+            
+            instance.listeners.forEach(l => l.onIncomingSession?.(session, callerNumber, callerName));
+
+            // Set up audio handling for incoming calls
+            session.on('peerconnection', () => {
+                session.connection.addEventListener('addstream', (e: any) => {
+                    var audio = document.createElement('audio');
+                    if (e.streams === undefined) return;
+                    if (e.streams.length === 0) return;
+                    audio.srcObject = e.streams[0];
+                    audio.play();
+                });
+
+                session.connection.addEventListener('track', (e: any) => {
+                    var audio = document.createElement('audio');
+                    audio.srcObject = e.streams[0];
+                    audio.play();
+                });
+            });
+            return;
+        }
 
         instance.listeners.forEach(l => l.onNewSession?.(session));
 
@@ -154,6 +180,12 @@ function getUAState(instance: UAInstance): { isReady: boolean; isConnected: bool
 // React Context and Provider
 // ============================================
 
+interface IncomingCallInfo {
+    session: any;
+    callerNumber: string;
+    callerName?: string;
+}
+
 interface PhoneContextValue {
     status: PhoneStatus;
     callNumber: string;
@@ -162,10 +194,13 @@ interface PhoneContextValue {
     currentCallDuration: number;
     startCall: (number: string) => void;
     endCall: () => void;
+    answerCall: () => void;
+    rejectCall: () => void;
     isReady: boolean;
     connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'failed';
     isInitialized: boolean;
     initialize: () => void;
+    incomingCall: IncomingCallInfo | null;
 }
 
 const PhoneContext = createContext<PhoneContextValue | null>(null);
@@ -176,6 +211,7 @@ interface PhoneProviderProps {
     onCallStart?: (number: string) => void;
     onCallEnd?: (number: string, duration: number, status: 'completed' | 'failed') => void;
     onStatusChange?: (status: PhoneStatus) => void;
+    onIncomingCall?: (callerNumber: string, callerName?: string) => void;
 }
 
 export function PhoneProvider({
@@ -183,7 +219,8 @@ export function PhoneProvider({
     children,
     onCallStart,
     onCallEnd,
-    onStatusChange
+    onStatusChange,
+    onIncomingCall
 }: PhoneProviderProps) {
     const [callNumber, setCallNumber] = useState('');
     const [status, setStatus] = useState<PhoneStatus>('disconnected');
@@ -193,6 +230,7 @@ export function PhoneProvider({
     const [isReady, setIsReady] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('disconnected');
     const [isInitialized, setIsInitialized] = useState(false);
+    const [incomingCall, setIncomingCall] = useState<IncomingCallInfo | null>(null);
 
     const currentSessionRef = useRef<any>(null);
     const callStartedTSRef = useRef<number | null>(null);
@@ -249,6 +287,48 @@ export function PhoneProvider({
             onNewSession: (session) => {
                 currentSessionRef.current = session;
             },
+            onIncomingSession: (session, callerNumber, callerName) => {
+                // Only handle if not already in a call
+                if (currentSessionRef.current) {
+                    session.terminate({ status_code: 486, reason_phrase: 'Busy Here' });
+                    return;
+                }
+
+                setIncomingCall({ session, callerNumber, callerName });
+                setCallNumber(callerNumber);
+                setStatus('ringing');
+                onIncomingCall?.(callerNumber, callerName);
+
+                // Set up session event handlers for incoming calls
+                session.on('failed', (e: any) => {
+                    console.error('Incoming call failed:', e?.cause);
+                    setStatus('failed');
+                    addToHistory(callerNumber, 0, 'missed');
+                    setIncomingCall(null);
+                    currentSessionRef.current = null;
+                    setTimeout(() => setStatus('disconnected'), 3000);
+                });
+
+                session.on('ended', () => {
+                    setStatus('ended');
+                    const startTS = callStartedTSRef.current;
+                    const duration = startTS ? Math.floor((Date.now() - startTS) / 1000) : 0;
+                    addToHistory(callerNumber, duration, 'completed');
+                    onCallEnd?.(callerNumber, duration, 'completed');
+                    setIncomingCall(null);
+                    currentSessionRef.current = null;
+                    setTimeout(() => {
+                        setStatus('disconnected');
+                        setCallStartedTS(null);
+                    }, 2000);
+                });
+
+                session.on('confirmed', () => {
+                    setStatus('confirmed');
+                    setCallStartedTS(Date.now());
+                    setIncomingCall(null);
+                });
+            },
         };
 
         addListener(instance, listener);
@@ -300,7 +380,47 @@ export function PhoneProvider({
             currentSessionRef.current.terminate();
             currentSessionRef.current = null;
         }
+        setIncomingCall(null);
     }, []);
+
+    const answerCall = useCallback(() => {
+        if (!incomingCall) return;
+
+        const { session, callerNumber } = incomingCall;
+
+        // Answer the call with audio only
+        const options = {
+            mediaConstraints: { audio: true, video: false },
+        };
+
+        try {
+            session.answer(options);
+            currentSessionRef.current = session;
+            onCallStart?.(callerNumber);
+        } catch (error) {
+            console.error('Failed to answer call:', error);
+            setStatus('failed');
+            addToHistory(callerNumber, 0, 'missed');
+            setIncomingCall(null);
+            setTimeout(() => setStatus('disconnected'), 3000);
+        }
+    }, [incomingCall, onCallStart, addToHistory]);
+
+    const rejectCall = useCallback(() => {
+        if (!incomingCall) return;
+
+        const { session, callerNumber } = incomingCall;
+
+        try {
+            session.terminate({ status_code: 603, reason_phrase: 'Decline' });
+        } catch (error) {
+            console.error('Failed to reject call:', error);
+        }
+
+        addToHistory(callerNumber, 0, 'missed');
+        setIncomingCall(null);
+        setStatus('disconnected');
+    }, [incomingCall, addToHistory]);
 
     const startCall = useCallback((number: string) => {
         const instance = uaInstanceRef.current;
@@ -480,10 +600,13 @@ export function PhoneProvider({
         currentCallDuration,
         startCall,
         endCall,
+        answerCall,
+        rejectCall,
         isReady,
         connectionStatus,
         isInitialized,
         initialize,
+        incomingCall,
     };
 
     return (
