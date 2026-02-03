@@ -283,6 +283,11 @@ export class PhoneManager {
             const customEvent = event as CustomEvent;
             const numberToCall = customEvent.detail.number;
             if (this._state.status === 'disconnected') {
+                // Check if UA is already registered (sync state if needed)
+                if (this.uaInstance?.ua.isRegistered() && !this._state.isReady) {
+                    this.updateState({ isReady: true, connectionStatus: 'connected' });
+                }
+
                 // If UA is not initialized or not ready, initialize first and wait for registration
                 if (!this.uaInstance || !this._state.isReady) {
                     this.initializeAndCall(numberToCall);
